@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Red Neural UNE Metro</title>
+    <script src="//unpkg.com/force-graph"></script>
+    <style>
+        body { margin: 0; background-color: #001219; color: white; font-family: sans-serif; overflow: hidden; }
+        #graph { width: 100vw; height: 100vh; }
+        .controls { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
+        h1 { margin: 0; font-size: 1.5rem; color: #DFFF00; text-transform: uppercase; letter-spacing: 2px; }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h1>Arquitectura Algorítmica: UNE Metro</h1>
+        <p>Actualización en tiempo real desde Airtable</p>
+    </div>
+    <div id="graph"></div>
+
+    <script>
+        const N8N_URL = 'TU_URL_DE_N8N'; // <--- PEGA TU URL AQUÍ
+
+        const Graph = ForceGraph()(document.getElementById('graph'))
+            .nodeId('id')
+            .nodeLabel('name')
+            .nodeColor('color')
+            .nodeVal('val')
+            .linkSource('source')
+            .linkTarget('target')
+            .backgroundColor('#001219')
+            .linkColor(() => '#334155')
+            .nodeCanvasObject((node, ctx, globalScale) => {
+                const label = node.name;
+                const fontSize = 14/globalScale;
+                ctx.font = `${fontSize}px Inter, sans-serif`;
+                const textWidth = ctx.measureText(label).width;
+                const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2);
+
+                // Dibujar Círculo
+                ctx.fillStyle = node.color;
+                ctx.beginPath(); ctx.arc(node.x, node.y, node.val / 2, 0, 2 * Math.PI, false); ctx.fill();
+
+                // Dibujar Texto
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = 'white';
+                ctx.fillText(label, node.x, node.y + (node.val / 2) + 5);
+            })
+            .onNodeClick(node => {
+                if(node.type === 'center' || node.type === 'structure') return;
+                alert(`📍 LÍDER: ${node.name}\n📂 ZONA: ${node.zona}\n🏠 BARRIO: ${node.barrio}`);
+            });
+
+        // Función para cargar datos
+        function updateData() {
+            fetch(N8N_URL)
+                .then(res => res.json())
+                .then(data => {
+                    Graph.graphData(data);
+                })
+                .catch(err => console.error('Error cargando red neural:', err));
+        }
+
+        // Carga inicial y refresco cada 60 segundos
+        updateData();
+        setInterval(updateData, 60000);
+    </script>
+</body>
+</html>
