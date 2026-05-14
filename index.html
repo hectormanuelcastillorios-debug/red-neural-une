@@ -2,24 +2,28 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Red Neural UNE Metro</title>
+    <title>Arquitectura Algorítmica | Red Neural UNE Metro</title>
     <script src="//unpkg.com/force-graph"></script>
     <style>
-        body { margin: 0; background-color: #001219; color: white; font-family: sans-serif; overflow: hidden; }
+        body { margin: 0; background-color: #001219; color: white; font-family: 'Inter', sans-serif; overflow: hidden; }
         #graph { width: 100vw; height: 100vh; }
-        .controls { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
-        h1 { margin: 0; font-size: 1.5rem; color: #DFFF00; text-transform: uppercase; letter-spacing: 2px; }
+        .controls { position: absolute; top: 30px; left: 30px; z-index: 10; pointer-events: none; }
+        h1 { margin: 0; font-size: 1.2rem; color: #DFFF00; text-transform: uppercase; letter-spacing: 3px; font-weight: 800; }
+        p { margin: 5px 0 0; font-size: 0.8rem; color: #94a3b8; letter-spacing: 1px; }
+        .loading { position: absolute; bottom: 20px; right: 20px; font-size: 0.7rem; color: #DFFF00; opacity: 0.6; }
     </style>
 </head>
 <body>
     <div class="controls">
-        <h1>Arquitectura Algorítmica: UNE Metro</h1>
-        <p>Actualización en tiempo real desde Airtable</p>
+        <h1>UNE Metro: Neural Map</h1>
+        <p>Operational Architecture v1.0</p>
     </div>
     <div id="graph"></div>
+    <div id="status" class="loading">Sincronizando con Airtable...</div>
 
     <script>
-        const N8N_URL = 'https://n8n.hectorcastillo.co/webhook/red-neural'; // <--- PEGA TU URL AQUÍ
+        // URL DE PRODUCCIÓN CONFIGURADA
+        const N8N_URL = 'https://n8n.hectorcastillo.co/webhook/red-neural';
 
         const Graph = ForceGraph()(document.getElementById('graph'))
             .nodeId('id')
@@ -29,41 +33,71 @@
             .linkSource('source')
             .linkTarget('target')
             .backgroundColor('#001219')
-            .linkColor(() => '#334155')
+            .linkColor(() => '#1e293b')
+            .linkDirectionalParticles(2)
+            .linkDirectionalParticleSpeed(0.005)
             .nodeCanvasObject((node, ctx, globalScale) => {
                 const label = node.name;
-                const fontSize = 14/globalScale;
-                ctx.font = `${fontSize}px Inter, sans-serif`;
-                const textWidth = ctx.measureText(label).width;
-                const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2);
-
-                // Dibujar Círculo
+                const fontSize = 12/globalScale;
+                ctx.font = `${fontSize}px sans-serif`;
+                
+                // Dibujar el círculo del nodo
                 ctx.fillStyle = node.color;
-                ctx.beginPath(); ctx.arc(node.x, node.y, node.val / 2, 0, 2 * Math.PI, false); ctx.fill();
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, node.val / 2, 0, 2 * Math.PI, false);
+                ctx.fill();
 
-                // Dibujar Texto
+                // Añadir brillo si es el centro
+                if(node.type === 'center') {
+                    ctx.strokeStyle = '#DFFF00';
+                    ctx.lineWidth = 2/globalScale;
+                    ctx.stroke();
+                }
+
+                // Dibujar el texto debajo
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillStyle = 'white';
-                ctx.fillText(label, node.x, node.y + (node.val / 2) + 5);
+                ctx.fillStyle = '#cbd5e1';
+                ctx.fillText(label, node.x, node.y + (node.val / 2) + (10/globalScale));
             })
             .onNodeClick(node => {
-                if(node.type === 'center' || node.type === 'structure') return;
-                alert(`📍 LÍDER: ${node.name}\n📂 ZONA: ${node.zona}\n🏠 BARRIO: ${node.barrio}`);
+                if(node.id === 'root' || node.type === 'structure') return;
+                // Popup personalizado de información
+                alert(`📋 FICHA DE LÍDER\n\nNombre: ${node.name}\nZona: ${node.zona}\nBarrio: ${node.barrio}`);
             });
 
-        // Función para cargar datos
         function updateData() {
+            const statusEl = document.getElementById('status');
+            statusEl.innerText = 'Actualizando...';
+
             fetch(N8N_URL)
-                .then(res => res.json())
-                .then(data => {
-                    Graph.graphData(data);
+                .then(res => {
+                    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+                    return res.json();
                 })
-                .catch(err => console.error('Error cargando red neural:', err));
+                .then(data => {
+                    // Limpieza de datos: n8n a veces envía un array [ { nodes, links } ]
+                    const cleanData = Array.isArray(data) ? data[0] : data;
+
+                    if (cleanData && cleanData.nodes && cleanData.links) {
+                        Graph.graphData(cleanData);
+                        statusEl.innerText = 'Sistema Sincronizado';
+                        setTimeout(() => statusEl.innerText = '', 3000);
+                    } else {
+                        console.error('Estructura de datos inválida recibida:', cleanData);
+                        statusEl.innerText = 'Error de Formato';
+                    }
+                })
+                .catch(err => {
+                    console.error('Error de conexión:', err);
+                    statusEl.innerText = 'Error de Conexión';
+                });
         }
 
-        // Carga inicial y refresco cada 60 segundos
+        // Ejecución inicial
         updateData();
+
+        // Refresco automático cada 60 segundos para mantener el mapa vivo
         setInterval(updateData, 60000);
     </script>
 </body>
